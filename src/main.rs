@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use converse::{Client, SessionManager};
+use std::thread;
 
 
 fn main() -> std::io::Result<()> {
@@ -11,7 +12,10 @@ fn main() -> std::io::Result<()> {
         match stream {
             Ok(stream) => {
                 let client = Client::from_stream(stream).unwrap();
-                session_manager.add_client(client)
+                let session = session_manager.add_client(client);
+                thread::spawn(move || {
+                    session.process_data();
+                });
             }
             Err(e) => { println!("Error: {}", e); }
         }

@@ -1,5 +1,6 @@
-use std::io::{Read, Error};
+use std::io::{Read, Write, Error};
 use std::net::{TcpStream};
+use std::thread;
 
 pub enum ConvState {
     Waiting,
@@ -50,6 +51,31 @@ impl Session {
         self.client2 = Some(client);
         self.state = ConvState::Going;
     }
+
+    pub fn process_data(&mut self) {
+        loop {
+            // Read incoming data
+            let mut data_from_client1 = Vec::new();
+            self.client1.stream.read_to_end(&mut data_from_client1);
+            println!("[{}] << {:?}", self.id, data_from_client1);
+            match self.client2 {
+                Some(ref mut client) => {
+                    client.stream.write_all(&data_from_client1);
+                },
+                None => { return; }
+            }
+
+            let mut data_from_client2 = Vec::new();
+            match self.client2 {
+                Some(ref mut client) => {
+                    client.stream.read_to_end(&mut data_from_client2);
+                    self.client1.stream.write_all(&data_from_client2);
+                    println!("[{}] >> {:?}", self.id, data_from_client2);
+                },
+                None => { return; }
+            }         
+        }
+    }
 }
 
 pub struct SessionManager {
@@ -63,13 +89,13 @@ impl SessionManager {
         }
     }
 
-    pub fn add_client(&mut self, client: Client) {
+    pub fn add_client(&mut self, client: Client) -> Option<&mut Session> {
         // Look for an existing matching session
         for session in self.sessions.iter_mut() {
             if session.id == client.conv_id {
                 println!("Adding client to session: {:?}", session.id);
                 session.add_client(client);
-                return;
+                return Some(session);
             }
         }
 
@@ -77,5 +103,6 @@ impl SessionManager {
         let session = Session::new(client);
         println!("Creating session {:?}", session.id);
         self.sessions.push(session);
+        return Some(&mut session);
     }
 }
